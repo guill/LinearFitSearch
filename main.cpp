@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include <algorithm>
+#include <assert.h>
 #include <vector>
 #include <random>
 #include <thread>
@@ -467,6 +468,21 @@ void VerifyResults(const std::vector<size_t>& values, size_t searchValue, const 
     #endif
 }
 
+void mkdir(const char* path)
+{
+#if _WIN32
+    const char* command = "mkdir \"%s\"";
+#elif __unix__
+    const char* command = "mkdir -p \"%s\"";
+#else
+#error "Need to know how to make directories"
+#endif
+
+    char buf[256];
+    sprintf_s(buf, command, path);
+    system(buf);
+}
+
 int main(int argc, char** argv)
 {
     MakeListInfo MakeFns[] =
@@ -496,6 +512,10 @@ int main(int argc, char** argv)
 
     typedef std::vector<std::string> TRow;
     typedef std::vector<TRow> TSheet;
+
+    const char *outputDirectory = "out";
+    // Make sure the "out" directory exists so we can make the output files
+    mkdir(outputDirectory);
 
     // for each numer sequence. Done multithreadedly
     std::atomic<size_t> nextRow(0);
@@ -587,9 +607,10 @@ int main(int argc, char** argv)
                     }
 
                     char fileName[256];
-                    sprintf_s(fileName, "out/%s.csv", MakeFns[makeIndex].name);
+                    sprintf_s(fileName, "%s/%s.csv", outputDirectory, MakeFns[makeIndex].name);
                     FILE* file = nullptr;
                     fopen_s(&file, fileName, "w+b");
+                    assert(file);
 
                     for (const TRow& row : csv)
                     {
