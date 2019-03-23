@@ -17,6 +17,16 @@ static const size_t c_perfTestNumSearches = 100000; // how many searches are goi
 static const size_t c_numRunsPerTest = 100;      // how many times does it do the same test to gather min, max, average?
 #endif
 
+#ifndef _WIN32
+// sprintf_s is a Windows-specific extension. There's no untrusted input here, so falling back to snprintf is good enough.
+#define sprintf_s(buffer, fmt, ...) \
+    static_assert(sizeof(buffer) != sizeof(char*), "sprintf_s hack only works with array, not ptr"); \
+    snprintf(buffer, sizeof(buffer), fmt, __VA_ARGS__)
+
+// fopen_s is a Windows-specific extension. We're not checking the return value anyway so the only thing we lose is argument validation.
+#define fopen_s(file, path, mode) *(file) = fopen(path, mode)
+#endif
+
 struct TestResults
 {
     bool found;
