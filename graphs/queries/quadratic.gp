@@ -2,9 +2,9 @@ load 'settings.gp'
 
 @TerminalDefault size 1920,480
 
-set multiplot layout 1, 3 title "Searches on Random Data"
+set multiplot layout 1, 3 title "Searches on Quadratic Data"
 
-plot @Dists using 1:7 with lines title "Random" @Random
+plot @Dists using 1:6 with lines title "Quadratic" @Quadratic
 
 plot \
 data using 1:2 with lines title "Line Fit Avg" @FnLineFit, \
