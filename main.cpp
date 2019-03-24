@@ -1,6 +1,7 @@
 #include "stdio.h"
 #include <algorithm>
 #include <assert.h>
+#include <fstream>
 #include <vector>
 #include <random>
 #include <thread>
@@ -510,12 +511,28 @@ int main(int argc, char** argv)
     std::vector<std::thread> threads;
     threads.resize(numThreads);
 
-    typedef std::vector<std::string> TRow;
-    typedef std::vector<TRow> TSheet;
-
     const char *outputDirectory = "out";
     // Make sure the "out" directory exists so we can make the output files
     mkdir(outputDirectory);
+
+    // To store off results
+    std::vector<std::string> columns =
+    { "DataDist", "SearchFn", "Samples", "Min", "Max", "Avg", "Single" };
+    struct ResultRow {
+        size_t dataDistIdx;
+        size_t searchFnIdx;
+        int samples;
+        uint32_t minimum;
+        uint32_t maximum;
+        float avg;
+        uint32_t single;
+    };
+
+    // Every group is owned by 1 thread.
+    std::vector<ResultRow> results[countof(MakeFns)];
+
+    // We store off the actual values for each distribution
+    std::vector<size_t> samples[countof(MakeFns)];
 
     // for each numer sequence. Done multithreadedly
     std::atomic<size_t> nextRow(0);
@@ -533,32 +550,10 @@ int main(int argc, char** argv)
                     static std::seed_seq fullSeed{ rd(), rd(), rd(), rd(), rd(), rd(), rd(), rd() };
                     static std::mt19937 rng(fullSeed);
 
-                    // the data to write to the csv file. a row per sample count plus one more for titles
-                    TSheet csv;
-                    csv.resize(c_maxNumValues + 1);
-
-                    // make a column for the sample counts
-                    char buffer[256];
-                    csv[0].push_back("Sample Count");
-                    for (size_t numValues = 1; numValues <= c_maxNumValues; ++numValues)
-                    {
-                        sprintf_s(buffer, "%zu", numValues);
-                        csv[numValues].push_back(buffer);
-                    }
-
                     // for each test
                     std::vector<size_t> values;
                     for (size_t testIndex = 0; testIndex < countof(TestFns); ++testIndex)
                     {
-                        sprintf_s(buffer, "%s Min", TestFns[testIndex].name);
-                        csv[0].push_back(buffer);
-                        sprintf_s(buffer, "%s Max", TestFns[testIndex].name);
-                        csv[0].push_back(buffer);
-                        sprintf_s(buffer, "%s Avg", TestFns[testIndex].name);
-                        csv[0].push_back(buffer);
-                        sprintf_s(buffer, "%s Single", TestFns[testIndex].name);
-                        csv[0].push_back(buffer);
-
                         // for each result
                         for (size_t numValues = 1; numValues <= c_maxNumValues; ++numValues)
                         {
@@ -584,42 +579,19 @@ int main(int argc, char** argv)
                                 guessSingle = result.guesses;
                             }
 
-                            sprintf_s(buffer, "%zu", guessMin);
-                            csv[numValues].push_back(buffer);
-
-                            sprintf_s(buffer, "%zu", guessMax);
-                            csv[numValues].push_back(buffer);
-
-                            sprintf_s(buffer, "%f", guessAverage);
-                            csv[numValues].push_back(buffer);
-
-                            sprintf_s(buffer, "%zu", guessSingle);
-                            csv[numValues].push_back(buffer);
+                            ResultRow result;
+                            result.samples = numValues;
+                            result.dataDistIdx = makeIndex;
+                            result.searchFnIdx = testIndex;
+                            result.minimum = guessMin;
+                            result.maximum = guessMax;
+                            result.avg = guessAverage;
+                            result.single = guessSingle;
+                            results[makeIndex].emplace_back(std::move(result));
                         }
                     }
 
-                    // make a column for the sampling sequence itself
-                    csv[0].push_back("Sequence");
-                    for (size_t numValues = 1; numValues <= c_maxNumValues; ++numValues)
-                    {
-                        sprintf_s(buffer, "%zu", values[numValues-1]);
-                        csv[numValues].push_back(buffer);
-                    }
-
-                    char fileName[256];
-                    sprintf_s(fileName, "%s/%s.csv", outputDirectory, MakeFns[makeIndex].name);
-                    FILE* file = nullptr;
-                    fopen_s(&file, fileName, "w+b");
-                    assert(file);
-
-                    for (const TRow& row : csv)
-                    {
-                        for (const std::string& cell : row)
-                            fprintf(file, "\"%s\",", cell.c_str());
-                        fprintf(file, "\n");
-                    }
-
-                    fclose(file);
+                    samples[makeIndex] = std::move(values);
 
                     printf("Done with %s\n", MakeFns[makeIndex].name);
 
@@ -631,6 +603,57 @@ int main(int argc, char** argv)
 
     for (std::thread& t : threads)
         t.join();
+
+    // Write output to files
+    printf("Writing result output\n");
+
+    {
+        std::ofstream out("results.csv", std::ios::trunc | std::ios::out);
+#if WRITE_CSV_HEADERS
+        // Header
+        for (size_t i = 0; i < columns.size(); ++i)
+        {
+            out << '"' << columns[i] << '"';
+            if (i != columns.size() - 1)
+                out << ',';
+        }
+        out << std::endl;
+#endif
+
+        // Values
+        for (const std::vector<ResultRow>& group : results)
+        {
+            for (const ResultRow& row : group)
+            {
+                out << '"' << MakeFns[row.dataDistIdx].name << "\","
+                    << '"' << TestFns[row.searchFnIdx].name << "\","
+                    << row.samples << ','
+                    << row.minimum << ','
+                    << row.maximum << ','
+                    << row.avg << ','
+                    << row.single << std::endl;
+            }
+        }
+    }
+
+    // Write samples to files
+    printf("Writing samples\n");
+    {
+        std::ofstream out("samples.csv", std::ios::trunc | std::ios::out);
+#if WRITE_CSV_HEADERS
+        out << "\"Dist\",\"Index\",\"Value\"" << std::endl;
+#endif
+
+        for (size_t i = 0; i < countof(samples); ++i)
+        {
+            const std::vector<size_t>& sample = samples[i];
+            for (size_t j = 0; j < sample.size(); ++j)
+            {
+                out << '"' << MakeFns[i].name << "\","
+                    << j << ',' << sample[j] << std::endl;
+            }
+        }
+    }
 
 #endif // MAKE_CSVS()
 
