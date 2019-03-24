@@ -434,6 +434,137 @@ TestResults TestList_LineFitBlind(const std::vector<size_t>& values, size_t sear
     return ret;
 }
 
+TestResults TestList_Gradient(const std::vector<size_t>& values, size_t searchValue)
+{
+    // The idea of this test is that we keep a fit of a line y=mx+b
+    // of the left and right side known data points, and use that
+    // info to make a guess as to where the value will be.
+    //
+    // When a guess is wrong, it becomes the new left or right of the line
+    // depending on if it was too low (left) or too high (right).
+    //
+    // This function returns how many steps it took to find the value
+    // but doesn't include the min and max reads at the beginning because
+    // those could reasonably be done in advance.
+
+    // get the starting min and max value.
+    size_t minIndex = 0;
+    size_t maxIndex = values.size() - 1;
+    size_t min = values[minIndex];
+    size_t max = values[maxIndex];
+
+    TestResults ret;
+    ret.found = true;
+    ret.guesses = 0;
+
+    // if we've already found the value, we are done
+    if (searchValue < min)
+    {
+        ret.index = minIndex;
+        ret.found = false;
+        return ret;
+    }
+    if (searchValue > max)
+    {
+        ret.index = maxIndex;
+        ret.found = false;
+        return ret;
+    }
+    if (searchValue == min)
+    {
+        ret.index = minIndex;
+        return ret;
+    }
+    if (searchValue == max)
+    {
+        ret.index = maxIndex;
+        return ret;
+    }
+
+    // fit a line to the end points
+    // y = mx + b
+    // m = rise / run
+    // b = y - mx
+    bool slopeDefined = false;
+    float m;
+    float b;
+    auto updateLine = [&]()
+    {
+        const size_t midpoint = (maxIndex + minIndex) / 2;
+        const size_t offset = 10;
+        if (midpoint - offset < minIndex || midpoint + offset > maxIndex)
+        {
+            slopeDefined = false;
+            return;
+        }
+        const size_t minidx = midpoint - offset;
+        const size_t maxidx = midpoint + offset;
+        const size_t minVal = values[minidx];
+        const size_t maxVal = values[maxidx];
+        if (minVal  == maxVal)
+        {
+            slopeDefined = false;
+            return;
+        }
+
+        slopeDefined = true;
+        m = (float(maxVal) - float(minVal)) / float(maxidx - minidx);
+        b = float(min) - m * float(minIndex);
+    };
+    updateLine();
+
+    while (1)
+    {
+        // make a guess based on our line fit
+        ret.guesses++;
+        size_t guessIndex;
+        if ( slopeDefined )
+        {
+            guessIndex = size_t(0.5f + (float(searchValue) - b) / m);
+        }
+        else
+        {
+            // Fall back to binary search
+            guessIndex = (minIndex + maxIndex) / 2;
+        }
+
+        guessIndex = Clamp(minIndex + 1, maxIndex - 1, guessIndex);
+        size_t guess = values[guessIndex];
+
+        // if we found it, return success
+        if (guess == searchValue)
+        {
+            ret.index = guessIndex;
+            return ret;
+        }
+
+        // if we were too low, this is our new minimum
+        if (guess < searchValue)
+        {
+            minIndex = guessIndex;
+            min = guess;
+        }
+        // else we were too high, this is our new maximum
+        else
+        {
+            maxIndex = guessIndex;
+            max = guess;
+        }
+
+        // if we run out of places to look, we didn't find it
+        if (minIndex + 1 >= maxIndex)
+        {
+            ret.index = minIndex;
+            ret.found = false;
+            return ret;
+        }
+
+        updateLine();
+    }
+
+    return ret;
+}
+
 // ------------------------ MAIN ------------------------
 
 void VerifyResults(const std::vector<size_t>& values, size_t searchValue, const TestResults& result, const char* list, const char* test)
@@ -503,6 +634,7 @@ int main(int argc, char** argv)
         {"Line Fit Blind", TestList_LineFitBlind},
         {"Binary Search", TestList_BinarySearch},
         {"Hybrid", TestList_HybridSearch},
+        {"Gradient", TestList_Gradient},
     };
 
 #if MAKE_CSVS()
