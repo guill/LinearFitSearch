@@ -2,7 +2,8 @@ images := $(patsubst queries/%.sql,output/%.png,$(wildcard queries/*.sql))
 
 all: $(images)
 
-output/%.png: queries/%.gnuplot intermediates/%.csv
+#Color scheme: ['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d']
+output/%.png: queries/%.gp intermediates/%.csv settings.gp
 	mkdir -p output
 	gnuplot -e 'set term png; set output "$@"; set datafile separator ","; data = "$(word 2, $^)"' -c $<
 	
