@@ -859,11 +859,11 @@ int main(int argc, char** argv)
     struct ResultRow {
         size_t dataDistIdx;
         size_t searchFnIdx;
-        int samples;
-        uint32_t minimum;
-        uint32_t maximum;
+        size_t samples;
+        size_t minimum;
+        size_t maximum;
         float avg;
-        uint32_t single;
+        size_t single;
     };
 
     // Every group is owned by 1 thread.
