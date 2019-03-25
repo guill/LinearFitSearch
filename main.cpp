@@ -645,16 +645,14 @@ TestResults TestList_Gradient2(const std::vector<size_t>& values, size_t searchV
     // Assume y'' = c1
     // y' = xc1 + c2
     // y = x^2/2 * c1 + xc2 + c3
-
-    // Solutions for x:
-    // x = - (sqrt(c2 * c2 - 2 c3 c1 + 2 c1 y) + c2) / c1
-    // x = (sqrt(c2 * c2 + 2 c1(y - c3)) - c2) / c1
+    // 0 = x^2/2 * c1 + xc2 + (c3 - y)
+    // x = -c2 +- sqrt(c2 * c2 - 2 * c1 * (c3 - y)) / c1
 
     // Calculate slope at min and max
     // Interpolate between slopes to find c1
     // solve for c2
     // solve for c3
-    // x = 
+    // solve for x
 
     LinearEquation tan1, tan2;
     LinearEquation prime;
@@ -662,9 +660,9 @@ TestResults TestList_Gradient2(const std::vector<size_t>& values, size_t searchV
     auto updateEquations = [&]() -> bool
     {
         // Update tan1, tan2
-        //const size_t offset = (maxIndex - minIndex) / 10;
-        const size_t offset = 10;
-        if (offset > (maxIndex - minIndex))
+        const size_t offset = (maxIndex - minIndex) / 10;
+        // const size_t offset = 10;
+        if (offset == 0 || offset > (maxIndex - minIndex))
             return false;
 
         if (!GetLinearEqn({minIndex, values[minIndex]}, {minIndex + offset, values[minIndex + offset]}, tan1))
@@ -676,7 +674,7 @@ TestResults TestList_Gradient2(const std::vector<size_t>& values, size_t searchV
         // Update y'
         // prime.m = c1
         // prime.b = c2
-        if (!GetLinearEqn({tan1.m, tan1.b}, {tan2.m, tan2.b}, prime))
+        if (!GetLinearEqn({float(minIndex), tan1.m}, {float(maxIndex), tan2.m}, prime))
             return false;
 
         return true;
@@ -688,12 +686,24 @@ TestResults TestList_Gradient2(const std::vector<size_t>& values, size_t searchV
         const float c3 = values[minIndex] - minIndex * minIndex / 2.0f * prime.m - minIndex * prime.b;
 
         // Solve for x.
-        // x = - (sqrt(c2 * c2 - 2 c3 c1 + 2 c1 y) + c2) / c1
-        // x = (sqrt(c2 * c2 + 2 c1(y - c3)) - c2) / c1
+        // y = x^2/2 * c1 + xc2 + c3
+        // 0 = x^2/2 * c1 + xc2 + (c3 - y)
+        // x = (-c2 +- sqrt(c2 * c2 - 2 * c1 * (c3 - y))) / c1
         const float c1 = prime.m;
         const float c2 = prime.b;
-        const float x1f = - (sqrt(c2 * c2 - 2 * c3 * c1 + 2 * c1 * y) + c2) / c1;
-        const float x2f = (sqrt(c2 * c2 + 2 * c1 * (y - c3)) - c2) / c1;
+
+        if ( c2 * c2 - 2 * c1 * (c3 - y) < 0.0f )
+        {
+            return false;
+        }
+
+        if ( c1 == 0.0f )
+        {
+            return false;
+        }
+
+        const float x1f = (-c2 + sqrt(c2 * c2 - 2 * c1 * (c3 - y))) / c1;
+        const float x2f = (-c2 - sqrt(c2 * c2 - 2 * c1 * (c3 - y))) / c1;
 
         const size_t x1 = size_t(x1f + 0.5f);
         const size_t x2 = size_t(x2f + 0.5f);
@@ -706,12 +716,12 @@ TestResults TestList_Gradient2(const std::vector<size_t>& values, size_t searchV
         }
         else if(valid1 && !valid2)
         {
-            x = valid1;
+            x = x1;
             return true;
         }
         else if(!valid1 && valid2)
         {
-            x = valid2;
+            x = x2;
             return true;
         }
 
