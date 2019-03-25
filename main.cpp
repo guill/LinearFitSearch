@@ -13,6 +13,7 @@
 #define MAKE_CSVS() 1 // the main test
 
 static const size_t c_maxValue = 2000;           // the sorted arrays will have values between 0 and this number in them (inclusive)
+static const size_t c_maxValueIncrement = 1;      // how much to increase our max value by with each step
 static const size_t c_maxNumValues = 1000;       // the graphs will graph between 1 and this many values in a sorted array
 static const size_t c_perfTestNumSearches = 100000; // how many searches are going to be done per list type, to come up with timing for a search type.
 #if MAKE_CSVS()
@@ -883,7 +884,7 @@ int main(int argc, char** argv)
                     for (size_t testIndex = 0; testIndex < countof(TestFns); ++testIndex)
                     {
                         // for each result
-                        for (size_t numValues = 1; numValues <= c_maxNumValues; ++numValues)
+                        for (size_t numValues = 1; numValues <= c_maxNumValues; numValues += c_maxValueIncrement)
                         {
                             size_t guessMin = ~size_t(0);
                             size_t guessMax = 0;
