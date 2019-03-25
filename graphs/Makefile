@@ -14,5 +14,14 @@ intermediates/%.csv: queries/%.sql results.db
 results.db: results.csv samples.csv makedb.sql
 	rm -f results.db && sqlite3 results.db < makedb.sql
 
+results.csv samples.csv: ../build/gmake2/bin/LinearFitSearch
+	../build/gmake2/bin/LinearFitSearch
+
+../build/gmake2/bin/LinearFitSearch: ../build/gmake2/Makefile
+	$(MAKE) -C ../build/gmake2 config=release_x86_64
+
+../build/gmake2/Makefile: ../premake5.lua
+	cd ..; premake5 gmake2 --cc=clang
+
 clean:
-	rm -rf *.png *.db intermediates/ output/
+	rm -rf *.png *.db intermediates/ output/ results.csv samples.csv
