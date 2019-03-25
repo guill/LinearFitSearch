@@ -825,21 +825,6 @@ void VerifyResults(const std::vector<size_t>& values, size_t searchValue, const 
     #endif
 }
 
-void mkdir(const char* path)
-{
-#if _WIN32
-    const char* command = "mkdir \"%s\"";
-#elif __unix__
-    const char* command = "mkdir -p \"%s\"";
-#else
-#error "Need to know how to make directories"
-#endif
-
-    char buf[256];
-    sprintf_s(buf, command, path);
-    system(buf);
-}
-
 int main(int argc, char** argv)
 {
     MakeListInfo MakeFns[] =
@@ -867,10 +852,6 @@ int main(int argc, char** argv)
     size_t numThreads = std::thread::hardware_concurrency();
     std::vector<std::thread> threads;
     threads.resize(numThreads);
-
-    const char *outputDirectory = "out";
-    // Make sure the "out" directory exists so we can make the output files
-    mkdir(outputDirectory);
 
     // To store off results
     std::vector<std::string> columns =
